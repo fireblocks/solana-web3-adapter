@@ -1,0 +1,17 @@
+{
+  "name": "solana_fireblocks_web3_provider",
+  "version": "1.0.0",
+  "description": "Solana Web3.js Fireblocks compatible provider",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@solana/web3.js": "^1.91.2",
+    "fireblocks-sdk": "^5.23.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.3"
+  }
+}
