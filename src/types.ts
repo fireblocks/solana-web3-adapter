@@ -1,4 +1,4 @@
-import { Transaction } from "@solana/web3.js";
+import { Keypair, Transaction } from "@solana/web3.js";
 import type { TransactionResponse, FeeLevel } from "fireblocks-sdk";
 
 export enum ApiBaseUrl {
@@ -16,14 +16,28 @@ export enum AssetId {
   SolanaMainnet = "SOL",
 }
 
+/**
+ * apiKey: string - Fireblocks API Key
+ *
+ * apiSecretPath: string - Fireblocks API Secret key file PATH
+ *
+ * apiBaseUrl?: ApiBaseUrl | string - Fireblocks API Base URL - default production
+ *
+ * vaultAccountId: string | number - Fireblocks Vault Account ID
+ *
+ * pollingInterval?: number - Fireblocks API polling interval for tx status updates
+ *
+ * nonceAccountAddress?: string - If Durable Nonce is required - the nonceAccount public ADDRESS
+ *
+ * nonceAuthorityKeyPair?: Keypair - If Durable Nonce is required - the nonceAuthority Keypair object - https://solana-labs.github.io/solana-web3.js/classes/Keypair.html
+ */
 export type FireblocksConnectionAdapterConfig = {
   apiKey: string;
   apiSecretPath: string;
+  apiBaseUrl?: ApiBaseUrl | string;
   vaultAccountId: string | number;
   devnet?: boolean;
-  feeLevel?: FeeLevel;
-  apiBaseUrl?: ApiBaseUrl | string;
-  txNote?: string;
   pollingInterval?: number;
-  externalTxId?: string
+  nonceAccountAddress?: string;
+  nonceAuthorityKeyPair?: Keypair;
 };

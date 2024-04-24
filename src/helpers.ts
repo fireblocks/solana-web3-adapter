@@ -1,14 +1,21 @@
-import { PublicKey, Transaction } from "@solana/web3.js";
+import {
+  Keypair,
+  NONCE_ACCOUNT_LENGTH,
+  PublicKey,
+  sendAndConfirmTransaction,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import {
   CreateTransactionResponse,
   FireblocksSDK,
-  PeerType,
-  TransactionArguments,
-  TransactionOperation,
   TransactionResponse,
   TransactionStatus,
 } from "fireblocks-sdk";
-import { AssetId, SignedTransaction } from "./types";
+import { writeFileSync } from "fs";
+import { FireblocksConnectionAdapter } from "./FireblocksConnectionAdapter";
+
+require("dotenv").config();
 
 export const waitForSignature = async (
   tx: CreateTransactionResponse,
@@ -55,68 +62,63 @@ export const waitForSignature = async (
   return txResponse;
 };
 
-export const signWithFireblocks = async (
-  transaction: Transaction,
-  fireblocksApiClient: FireblocksSDK,
-  rawSigning: boolean,
-  assetId: AssetId,
-  vaultAccountId: string | number,
-  payer: string,
-  pollingInterval?: number,
-  amount?: Number,
-  txNote?: string,
-  externalTxId?: string
-): Promise<SignedTransaction> => {
-  const messageToSign = transaction.serializeMessage();
-  const payload: TransactionArguments = {
-    assetId: assetId,
-    operation: rawSigning
-      ? TransactionOperation.RAW
-      : TransactionOperation.TRANSFER,
-    source: {
-      type: PeerType.VAULT_ACCOUNT,
-      id: String(vaultAccountId),
-    },
-    note: txNote || "Created by Solana Web3 Adapter",
-    externalTxId: externalTxId || null
-  };
+/**
+ * Create a nonce account and nonce authority while the fee payer is your configured Fireblocks Vault Account.
+ *
+ * The nonce authority keypair is created locally in nonceInfo.ts file.
+ *
+ * @param connection - FireblocksConnectionAdapter instance
+ */
+export const createNonceAccountAndAuthority = async (
+  connection: FireblocksConnectionAdapter,
+) => {
+  const feePayerAddress = await connection.getAccount();
+  console.log(feePayerAddress);
+  const feePayer = new PublicKey(feePayerAddress);
+  console.log(feePayer);
+  let nonceAccount = Keypair.generate();
+  let nonceAuthority = Keypair.generate();
 
-  if (rawSigning) {
-    payload.extraParameters = {
-      rawMessageData: {
-        messages: [
-          {
-            content: messageToSign.toString("hex"),
-          },
-        ],
-      },
-    };
-  } else {
-    payload.destination = {
-      type: PeerType.ONE_TIME_ADDRESS,
-      oneTimeAddress: {
-        address: transaction.instructions[0].keys[1].pubkey.toBase58(),
-      },
-    };
-    payload.amount = amount as number;
-  }
-
-  const signature = await fireblocksApiClient.createTransaction(payload);
-  const signedTx = await waitForSignature(
-    signature,
-    fireblocksApiClient,
-    pollingInterval,
+  writeFileSync(
+    "./nonceInfo.ts",
+    `export const nonceAccountAddress = "${nonceAccount.publicKey.toBase58()}";\nexport const nonceAuthorityPrivateKey = [${nonceAuthority.secretKey}]`,
+  );
+  console.log(
+    "Saved Nonce Account and Nonce Authority data to nonceInfo.ts file",
   );
 
-  if (rawSigning) {
-    transaction.addSignature(
-      new PublicKey(payer),
-      Buffer.from(signedTx.signedMessages[0].signature.fullSig, "hex"),
-    );
-  }
+  let tx = new Transaction();
+  tx.add(
+    // create nonce account
+    SystemProgram.createAccount({
+      fromPubkey: feePayer,
+      newAccountPubkey: nonceAccount.publicKey,
+      lamports:
+        await connection.getMinimumBalanceForRentExemption(
+          NONCE_ACCOUNT_LENGTH,
+        ),
+      space: NONCE_ACCOUNT_LENGTH,
+      programId: SystemProgram.programId,
+    }),
+    // init nonce account
+    SystemProgram.nonceInitialize({
+      noncePubkey: nonceAccount.publicKey,
+      authorizedPubkey: nonceAuthority.publicKey,
+    }),
+  );
 
-  return {
-    signedTx: transaction,
-    fireblocksSignedTxPayload: signedTx,
-  };
+  const { blockhash } = await connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = feePayer;
+
+  tx.partialSign(nonceAccount);
+
+  try {
+    const txHash = await sendAndConfirmTransaction(connection, tx, []);
+    console.log(
+      `Transaction sent: https://explorer.solana.com/tx/${txHash}?cluster=devnet`,
+    );
+  } catch (error) {
+    console.error("Error sending transaction:", error);
+  }
 };
