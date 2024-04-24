@@ -34,7 +34,7 @@
 
 The Fireblocks Solana Web3 Connection Adapter facilitates interactions between the Fireblocks API and the Solana blockchain, simplifying the process of sending transactions through Fireblocks by handling complex authentication, nonce management, and transaction signing procedures.
 
-The Solana Web3 Connection Adapter utilizes Fireblocks [Raw Singing]() for processing any non native, single instruction transactions.
+The Solana Web3 Connection Adapter utilizes Fireblocks [Raw Singing](https://developers.fireblocks.com/docs/raw-message-signing-overview) for processing any non native, single instruction transactions.
 
 If the transaction has a single `transfer` instruction - the adapter will identify that and will execute the request a regular Fireblocks Solana transaction.
 
@@ -99,4 +99,39 @@ console.log('Transaction sent with hash:', txHash);
 
 ## Examples
 
-See the [examples]() directory in this repository for more detailed examples.
+See the [examples](https://github.com/fireblocks/solana-web3-provider/tree/main/examples) directory in this repository for more detailed examples.
+
+## Extended methods
+
+Fireblocks Solana Web3 Connection Adapter introduces a few extended methods for better user experience:
+
+
+Set a transaction note:
+```js
+connection.setTxNote(txNote: string)
+```
+
+
+Set an external transaction identifier:
+```js
+connection.setExternalTxId(externalTxId: string | null)
+```
+
+Get the address of the current account (the address of the SOL/SOL_TEST wallet in the configured vault account):
+```js
+connection.getAccount() 
+```
+
+Create a nonce account and nonce authority while the fee payer is your configured Fireblocks Vault Account. \
+NOTE: The nonce authority keypair is created locally in `nonceInfo.ts` file.
+
+```js
+helpers.createNonceAccountAndAuthority(connection: FireblocksConnectionAdapter)
+```
+
+## Durable nonce support
+Solana transactions should be signed and validate within a limited timeframe, read more in the [official Solana Documentation](https://solana.com/docs/core/transactions/confirmation#transaction-expiration).
+
+This limitation can be solved by utilizing the [Solana Durable Nonce](https://solana.com/developers/guides/advanced/introduction-to-durable-nonces) feature.
+Fireblocks Solana Web3 Connection Adapter accepts the `nonceAccountAddress` and the `nonceAuthorityKeypair` optional parameters in order to serialize and sign a transaction with a durable nonce.
+Please check the `createProgramCallWithNonce.ts` example in the examples directory for usage example.
