@@ -11,8 +11,11 @@
   "devDependencies": {
     "@solana/web3.js": "^1.91.2",
     "fireblocks-sdk": "^5.23.0",
+    "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.3",
-    "prettier": "^3.2.5"
+    "typescript": "^5.4.3"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.6"
   }
 }
