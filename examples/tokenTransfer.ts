@@ -19,7 +19,7 @@ import { FireblocksConnectionAdapterConfig } from "../src/types";
 
 // Just some destination key pair of my own.
 // Can be replaced with any other pubkey.
-import someDest from "./keys_examples/someDest";
+const someDest = "B8jtFhfAVTfk7Skr9iNNtYuH5x8RCebTHQ8WA6QYA5rT";
 
 // ATA for my token
 const MY_ASSOCIATED_TOKEN_ACCOUNT = "Ae23tVpsc5F3QwXhPNQPh2r5xaUHQ93roNPdKJCkS5nH"
@@ -50,9 +50,7 @@ require("dotenv").config();
   const feePayer = await connection.getAccount();
 
   // Defining the transfer's destination
-  const toAddress = Keypair.fromSecretKey(
-    Uint8Array.from(Buffer.from(someDest, "base64"))
-  );
+  const toAddress = new PublicKey(someDest)
   
   let tx = new Transaction();
   let account: Account;
@@ -60,7 +58,7 @@ require("dotenv").config();
   // Get associated token account address (deterministic)
   const ata = await getAssociatedTokenAddress(
     mintPubkey, // mint account publicKey
-    toAddress.publicKey // owner of the new associated token account
+    toAddress // owner of the new associated token account
   );
   
   // Try to get an associated token account with the given address and create if does not exist
@@ -71,7 +69,7 @@ require("dotenv").config();
       tx.add(createAssociatedTokenAccountInstruction(
         new PublicKey(feePayer), // fee payer
         ata, // ata
-        toAddress.publicKey, // owner of the new associated token account
+        toAddress, // owner of the new associated token account
         mintPubkey // mint public key
       ))
     } else {

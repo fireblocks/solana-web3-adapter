@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@solana/web3.js": "^1.91.2",
+    "@solana/web3.js": "^1.95.8",
     "fireblocks-sdk": "^5.23.0",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
