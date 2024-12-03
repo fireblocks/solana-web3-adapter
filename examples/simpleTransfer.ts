@@ -1,6 +1,5 @@
 import {
   clusterApiUrl,
-  Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   sendAndConfirmTransaction,
@@ -9,7 +8,8 @@ import {
 } from "@solana/web3.js";
 import { FireblocksConnectionAdapter } from "../src/FireblocksConnectionAdapter";
 import { FireblocksConnectionAdapterConfig } from "../src/types";
-import someDest from "./keys_examples/someDest";
+
+const someDest = "B8jtFhfAVTfk7Skr9iNNtYuH5x8RCebTHQ8WA6QYA5rT";
 
 require("dotenv").config();
 
@@ -28,13 +28,12 @@ const main = async () => {
   );
 
   const accountPublicKey = new PublicKey(connection.getAccount());
-  const recipientSecretKey = Uint8Array.from(Buffer.from(someDest, "base64"));
-  const recipient = Keypair.fromSecretKey(recipientSecretKey);
+  const recipient = new PublicKey(someDest);
 
   transaction.add(
     SystemProgram.transfer({
       fromPubkey: accountPublicKey,
-      toPubkey: recipient.publicKey,
+      toPubkey: recipient,
       lamports: LAMPORTS_PER_SOL * 0.1,
     }),
   );
