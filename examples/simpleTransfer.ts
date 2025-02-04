@@ -4,12 +4,12 @@ import {
   PublicKey,
   sendAndConfirmTransaction,
   SystemProgram, 
-  Transaction,
+  Transaction
 } from "@solana/web3.js";
-import { FireblocksConnectionAdapter } from "../src/FireblocksConnectionAdapter";
-import { FireblocksConnectionAdapterConfig } from "../src/types";
+import { FireblocksConnectionAdapter, FireblocksConnectionAdapterConfig, FeeLevel } from "../src";
 
-const someDest = "B8jtFhfAVTfk7Skr9iNNtYuH5x8RCebTHQ8WA6QYA5rT";
+
+const someDest = "3kz72p8F8xjJ5re6uNsUNhULCpZXy1GU9eaBkzqg2Ctq";
 
 require("dotenv").config();
 
@@ -19,11 +19,13 @@ const main = async () => {
   const fireblocksConnectionConfig: FireblocksConnectionAdapterConfig = {
     apiKey: process.env.FIREBLOCKS_API_KEY,
     apiSecretPath: process.env.FIREBLOCKS_SECRET_KEY_PATH,
-    vaultAccountId: 0,
+    vaultAccountId: process.env.FIREBLOCKS_VAULT_ACCOUNT_ID,
+    feeLevel: FeeLevel.HIGH,
+    silent: true,
   };
 
   const connection = await FireblocksConnectionAdapter.create(
-    clusterApiUrl("devnet"),
+    clusterApiUrl("mainnet-beta"),
     fireblocksConnectionConfig,
   );
 
@@ -34,7 +36,7 @@ const main = async () => {
     SystemProgram.transfer({
       fromPubkey: accountPublicKey,
       toPubkey: recipient,
-      lamports: LAMPORTS_PER_SOL * 0.1,
+      lamports: LAMPORTS_PER_SOL * 0.01,
     }),
   );
 
@@ -45,7 +47,7 @@ const main = async () => {
   try {
     const txHash = await sendAndConfirmTransaction(connection, transaction, []);
     console.log(
-      `Transaction sent: https://explorer.solana.com/tx/${txHash}?cluster=devnet`,
+      `Transaction sent: https://explorer.solana.com/tx/${txHash}`,
     );
   } catch (error) {
     console.error("Error sending transaction:", error);
