@@ -2,28 +2,30 @@ import fs from "fs";
 import {
   Connection,
   PublicKey,
-  Transaction,
   SendOptions,
-  VersionedTransaction,
   Commitment,
-  LAMPORTS_PER_SOL,
-  NonceAccount,
-  SystemProgram,
+  SignatureResult,
+  RpcResponseAndContext,
+  Transaction
 } from "@solana/web3.js";
 
 import {
+  CreateTransactionResponse,
+  FeeLevel,
   FireblocksSDK,
   PeerType,
   TransactionArguments,
   TransactionOperation,
 } from "fireblocks-sdk";
 import {
-  ApiBaseUrl,
   AssetId,
   FireblocksConnectionAdapterConfig,
-  SignedTransaction,
+  TransactionOrVersionedTransaction,
+  Logger
 } from "./types";
+import { DefaultLogger } from "./logger";
 import { waitForSignature } from "./helpers";
+import { ASSET_IDS, API_BASE_URLS } from "./types";
 
 /**
  * Fireblocks Solana Web3 Connection Adapter Class
@@ -31,13 +33,16 @@ import { waitForSignature } from "./helpers";
  * Should be instantiated via the static 'create' method
  */
 export class FireblocksConnectionAdapter extends Connection {
-  private adapterConfig: FireblocksConnectionAdapterConfig;
-  private fireblocksApiClient: FireblocksSDK;
-  private account: string;
-  private assetId: AssetId;
+  private readonly adapterConfig: FireblocksConnectionAdapterConfig;
+  private readonly fireblocksApiClient: FireblocksSDK;
+  private readonly assetId: AssetId;
+  private readonly logger: Logger;
   private devnet: boolean;
-  private txNote: string;
-  private externalTxId: string | null;
+
+  private account: string = '';
+  private txNote: string = '';
+  private externalTxId: string | null = null;
+  private feeLevel: FeeLevel;
 
   private constructor(
     fireblocksClient: FireblocksSDK,
@@ -48,10 +53,28 @@ export class FireblocksConnectionAdapter extends Connection {
     super(endpoint, { commitment });
     this.fireblocksApiClient = fireblocksClient;
     this.adapterConfig = config;
-    this.devnet = config.devnet ? true : false;
-    this.assetId = this.adapterConfig.devnet
-      ? AssetId.SolanaDevnet
-      : AssetId.SolanaMainnet;
+    this.devnet = config.devnet ?? false;
+    this.assetId = this.devnet ? ASSET_IDS.SOLANA_DEVNET : ASSET_IDS.SOLANA_MAINNET;
+    this.feeLevel = config.feeLevel || FeeLevel.MEDIUM;
+    
+    // Create logger with verbose output by default unless silent is true
+    const isSilent = config.silent ?? false;
+    this.logger = {
+      debug: (...args) => !isSilent && console.log('[DEBUG]', ...args),
+      info: (...args) => !isSilent && console.log('[INFO]', ...args),
+      warn: (...args) => !isSilent && console.warn('[WARN]', ...args),
+      error: (...args) => console.error('[ERROR]', ...args),
+    };
+  }
+
+  private validateConfig(config: FireblocksConnectionAdapterConfig): void {
+    if (!config.apiKey || !config.apiSecretPath || !config.vaultAccountId) {
+      throw new Error('Missing required configuration parameters');
+    }
+    
+    if (!fs.existsSync(config.apiSecretPath)) {
+      throw new Error(`API secret file not found at path: ${config.apiSecretPath}`);
+    }
   }
 
   /**
@@ -62,44 +85,41 @@ export class FireblocksConnectionAdapter extends Connection {
    * @param commitment - optional: The level of commitment desired when querying state ('processed' || 'confirmed' || 'finalized')
    * @returns - FireblocksConnectionAdapter instance
    */
-  public static create = async (
+  public static async create(
     endpoint: string,
     config: FireblocksConnectionAdapterConfig,
     commitment?: Commitment,
-  ): Promise<FireblocksConnectionAdapter> => {
-    if (
-      Boolean(config.nonceAccountAddress) !==
-      Boolean(config.nonceAuthorityKeyPair)
-    ) {
-      throw new Error(
-        "Both nonce account address and nonce authority keypair should be provided if one is provided",
+  ): Promise<FireblocksConnectionAdapter> {
+    if (!endpoint) {
+      throw new Error('Endpoint is required');
+    }
+
+    try {
+      const fireblocksSecretKey = await fs.promises.readFile(config.apiSecretPath, "utf-8");
+      const fireblocksClient = new FireblocksSDK(
+        fireblocksSecretKey,
+        config.apiKey,
+        API_BASE_URLS.PRODUCTION
       );
+
+      const environment = endpoint.split(".")[1];
+      config.devnet = environment === "devnet" || environment === "testnet";
+
+      const adapter = new FireblocksConnectionAdapter(
+        fireblocksClient,
+        endpoint,
+        config,
+        commitment,
+      );
+
+      await adapter.setAccount(config.vaultAccountId, config.devnet);
+      adapter.setExternalTxId(null);
+
+      return adapter;
+    } catch (error) {
+      throw new Error(`Failed to initialize Fireblocks client: ${error.message}`);
     }
-
-    const fireblocksSecretKey = fs.readFileSync(config.apiSecretPath, "utf-8");
-    const fireblocksClient = new FireblocksSDK(
-      fireblocksSecretKey,
-      config.apiKey,
-      config.apiBaseUrl || ApiBaseUrl.Production,
-    );
-
-    const environment = endpoint.split(".")[1];
-    if (environment === "devnet" || environment === "testnet") {
-      config.devnet = true;
-    }
-
-    const adapter = new FireblocksConnectionAdapter(
-      fireblocksClient,
-      endpoint,
-      config,
-      commitment,
-    );
-
-    await adapter.setAccount(config.vaultAccountId, config.devnet);
-    adapter.setExternalTxId(null);
-
-    return adapter;
-  };
+  }
 
   /**
    * Set transaction note
@@ -129,21 +149,30 @@ export class FireblocksConnectionAdapter extends Connection {
    * Get External Transaction Identifier
    * @returns externalITxId - string
    */
-  public getExternalTxId = (): string => {
+  public getExternalTxId = (): string | null => {
     return this.externalTxId;
   };
 
-  private setAccount = async (
+  private async setAccount(
     vaultAccount: number[] | string[] | string | number,
     devnet: boolean,
-  ) => {
-    const solWallet = await this.fireblocksApiClient.getDepositAddresses(
-      String(vaultAccount),
-      devnet ? AssetId.SolanaDevnet : AssetId.SolanaMainnet,
-    );
+  ): Promise<void> {
+    try {
+      const solWallet = await this.fireblocksApiClient.getDepositAddresses(
+        String(vaultAccount),
+        devnet ? ASSET_IDS.SOLANA_DEVNET : ASSET_IDS.SOLANA_MAINNET,
+      );
 
-    this.account = solWallet[0].address;
-  };
+      if (!solWallet?.[0]?.address) {
+        throw new Error('No wallet address found');
+      }
+
+      this.account = solWallet[0].address;
+      this.logger.debug('Account set successfully', { address: this.account });
+    } catch (error) {
+      throw new Error(`Failed to set account: ${(error as Error).message}`);
+    }
+  }
 
   /**
    * Get current account's address (the address of the SOL/SOL_TEST wallet in the configured vault account)
@@ -153,150 +182,129 @@ export class FireblocksConnectionAdapter extends Connection {
     return this.account;
   };
 
-  private signWithFireblocks = async (
-    transaction: Transaction,
-    amount: Number | null,
-    payer: string,
-  ): Promise<SignedTransaction> => {
-    if (
-      this.adapterConfig.nonceAuthorityKeyPair &&
-      this.adapterConfig.nonceAccountAddress &&
-      !amount
-    ) {
-      transaction.instructions.unshift(
-        SystemProgram.nonceAdvance({
-          noncePubkey: new PublicKey(this.adapterConfig.nonceAccountAddress),
-          authorizedPubkey: this.adapterConfig.nonceAuthorityKeyPair.publicKey,
-        }),
-      );
+  private async signWithFireblocks(
+    transaction: TransactionOrVersionedTransaction
+  ): Promise<CreateTransactionResponse> {
+    this.logger.debug('Preparing to sign transaction with Fireblocks', {
+      feePayer: this.account,
+      feeLevel: this.feeLevel
+    });
 
-      transaction.partialSign(this.adapterConfig.nonceAuthorityKeyPair);
-    }
+    try {
+      if (!transaction) {
+        throw new Error('Transaction is required');
+      }
 
-    const messageToSign = transaction.serializeMessage();
-
-    const txNote = this.getTxNote();
-    const payload: TransactionArguments = {
-      assetId: this.assetId,
-      operation: amount
-        ? TransactionOperation.TRANSFER
-        : TransactionOperation.RAW,
-      source: {
-        type: PeerType.VAULT_ACCOUNT,
-        id: String(this.adapterConfig.vaultAccountId),
-      },
-      note: txNote || "Created by Solana Web3 Adapter",
-    };
-
-    this.externalTxId ? (payload.externalTxId = this.externalTxId) : null;
-
-    if (!amount) {
-      payload.extraParameters = {
-        rawMessageData: {
-          messages: [
-            {
-              content: messageToSign.toString("hex"),
-            },
-          ],
+      const serializedTx = transaction.serialize({ requireAllSignatures: false });
+            
+      const payload: TransactionArguments = {
+        assetId: this.assetId,
+        operation: "PROGRAM_CALL" as TransactionOperation,
+        feeLevel: this.feeLevel,
+        source: {
+          type: PeerType.VAULT_ACCOUNT,
+          id: String(this.adapterConfig.vaultAccountId),
         },
+        note: this.txNote || "Created by Solana Web3 Adapter",
+        extraParameters: {
+          programCallData: Buffer.from(serializedTx).toString("base64")
+        }
       };
-    } else {
-      payload.destination = {
-        type: PeerType.ONE_TIME_ADDRESS,
-        oneTimeAddress: {
-          address: transaction.instructions[0].keys[1].pubkey.toBase58(),
-        },
-      };
-      payload.amount = amount as number;
+
+      if (this.externalTxId) {
+        payload.externalTxId = this.externalTxId;
+      }
+
+      this.logger.debug('Submitting transaction to Fireblocks', { payload });
+
+      const tx = await this.createFireblocksTransaction(payload);
+
+      this.logger.info('Transaction submitted to Fireblocks', {
+        transactionId: tx.id,
+        status: tx.status
+      });
+
+      return tx;
+    } catch (error) {
+      throw new Error(`Failed to sign transaction with Fireblocks: ${error.message}`);
     }
+  }
 
-    console.log(
-      `Sending the following payload to Fireblocks:\n${JSON.stringify(payload, null, 2)}`,
-    );
-
-    const signature = await this.fireblocksApiClient.createTransaction(payload);
-    const fireblocksSignedTxPayload = await waitForSignature(
-      signature,
-      this.fireblocksApiClient,
-      this.adapterConfig.pollingInterval,
-    );
-
-    if (!amount) {
-      transaction.addSignature(
-        new PublicKey(payer),
-        Buffer.from(
-          fireblocksSignedTxPayload.signedMessages[0].signature.fullSig,
-          "hex",
-        ),
-      );
-    }
-
+  public async confirmTransaction(
+    signatureOrConfig: string | { signature: string },
+    commitment?: Commitment
+  ): Promise<RpcResponseAndContext<SignatureResult>> {
     return {
-      signedTx: transaction,
-      fireblocksSignedTxPayload,
+      context: { slot: 0 },
+      value: { err: null }
     };
-  };
+  }
 
   public async sendTransaction(
-    transaction: Transaction | VersionedTransaction,
+    transaction: TransactionOrVersionedTransaction,
     signers?: { publicKey: PublicKey; secretKey: Uint8Array }[] | SendOptions,
     options?: SendOptions,
   ): Promise<string> {
-    if (transaction instanceof Transaction) {
-      let amount = null;
-
-      // Add recent blockhash if does not exist
-      if (
-        !transaction.recentBlockhash &&
-        this.adapterConfig.nonceAuthorityKeyPair &&
-        !amount
-      ) {
-        const nonceAccountInfo = (
-          await this.getAccountInfo(
-            new PublicKey(this.adapterConfig.nonceAccountAddress),
-          )
-        ).data;
-        const nonceAccountHash =
-          NonceAccount.fromAccountData(nonceAccountInfo).nonce;
-        transaction.recentBlockhash = nonceAccountHash;
-      } else {
+    try {
+      
+      
+      if (transaction instanceof Transaction) {
         const { blockhash } = await this.getLatestBlockhash();
         transaction.recentBlockhash = blockhash;
+        transaction.feePayer = new PublicKey(this.account);
       }
+      
+      const fbTxResponse = await this.signWithFireblocks(transaction);
+      
+      this.logger.debug('Waiting for transaction confirmation');
+      
+      const finalTxResponse = await waitForSignature(
+        fbTxResponse,
+        this.fireblocksApiClient,
+        this.adapterConfig.pollingInterval || 3000,
+        this.logger
+      );
 
-      // Add self as feePayer
-      transaction.feePayer = new PublicKey(this.account);
-
-      //Check if tx has 1 instruction and it is a basic transfer
-      if (
-        transaction.instructions.length == 1 &&
-        transaction.instructions[0].data[0] === 2
-      ) {
-        const dataView = new DataView(
-          transaction.instructions[0].data.buffer,
-          transaction.instructions[0].data.byteOffset,
-          transaction.instructions[0].data.byteLength,
-        );
-
-        amount = Number(dataView.getBigUint64(4, true)) / LAMPORTS_PER_SOL;
+      if (!finalTxResponse.txHash) {
+        throw new Error('Transaction hash not found in Fireblocks response');
       }
-
-      const { txHash } = (
-        await this.signWithFireblocks(transaction, amount, this.account)
-      ).fireblocksSignedTxPayload;
-
-      if (Array.isArray(signers)) {
-        signers?.forEach((signer) => {
-          transaction.partialSign(signer);
-        });
-      }
-
-      if (!txHash) {
-        return super.sendRawTransaction(transaction.serialize());
-      }
-      return txHash;
-    } else {
-      throw new Error("Versioned Transactions are not yet supported");
+      
+      this.logger.info('Transaction confirmed', { 
+        txHash: finalTxResponse.txHash,
+        status: finalTxResponse.status
+      });
+      
+      return finalTxResponse.txHash;
+    } catch (error) {
+      this.logger.error('Transaction failed', error as Error);
+      throw new Error(`Failed to send transaction: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Set transaction fee level
+   * @param feeLevel - transaction fee level: "HIGH" | "MEDIUM" | "LOW"
+   */
+  public setFeeLevel(feeLevel: FeeLevel): void {
+    this.feeLevel = feeLevel;
+  }
+
+  /**
+   * Get current fee level
+   * @returns FeeLevel
+   */
+  public getFeeLevel(): FeeLevel {
+    return this.feeLevel;
+  }
+
+  // Add protected methods to allow mocking in tests
+  protected async createFireblocksTransaction(
+    payload: TransactionArguments
+  ): Promise<CreateTransactionResponse> {
+    return this.fireblocksApiClient.createTransaction(payload);
+  }
+
+  protected async getBlockhash(): Promise<string> {
+    return (await this.getLatestBlockhash()).blockhash;
   }
 }

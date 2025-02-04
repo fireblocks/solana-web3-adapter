@@ -1,6 +1,6 @@
 {
   "name": "solana_fireblocks_web3_provider",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Solana Web3.js Fireblocks compatible provider",
   "main": "index.js",
   "scripts": {
@@ -9,13 +9,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@solana/web3.js": "^1.91.2",
+    "@solana/web3.js": "^1.95.8",
     "fireblocks-sdk": "^5.23.0",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.3"
   },
   "dependencies": {
+    "@raydium-io/raydium-sdk": "^1.3.1-beta.58",
     "@solana/spl-token": "^0.4.6"
   }
 }

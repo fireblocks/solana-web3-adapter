@@ -5,8 +5,8 @@ import {
   clusterApiUrl,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { FireblocksConnectionAdapter } from "../src/FireblocksConnectionAdapter";
-import { FireblocksConnectionAdapterConfig } from "../src/types";
+import { FireblocksConnectionAdapter } from "../src";
+import { FireblocksConnectionAdapterConfig } from "../src";
 
 require("dotenv").config();
 
@@ -18,7 +18,7 @@ async function helloWorldProgram() {
   const fireblocksConnectionConfig: FireblocksConnectionAdapterConfig = {
     apiKey: process.env.FIREBLOCKS_API_KEY,
     apiSecretPath: process.env.FIREBLOCKS_SECRET_KEY_PATH,
-    vaultAccountId: 0,
+    vaultAccountId: process.env.FIREBLOCKS_VAULT_ACCOUNT_ID,
   };
 
   const connection = await FireblocksConnectionAdapter.create(

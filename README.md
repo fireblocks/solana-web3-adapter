@@ -1,4 +1,3 @@
-
 <p align="center">
   <img src="./logo.svg" width="350" alt="accessibility text">
 </p>
@@ -9,34 +8,18 @@
   <h1> Fireblocks Solana Web3 Connection Adapter </h1>
 </div>
 <br/>
-
-
-> :warning: **Warning:** 
-> This code example utilizes the Fireblocks RAW signing feature. 
-> 
-> Raw Signing is an insecure signing method and is not generally recommended.  
-> Bad actors can trick someone into signing a valid transaction message and use it to steal funds.
-> 
-> For this reason, Raw Signing is a premium feature that requires an additional purchase and is not available in production workspaces by default. 
-> If you're interested in this feature and want to see if your use case is eligible for it, please contact your Customer Success Manager.
-> 
-> [Fireblocks Sandbox](https://developers.fireblocks.com/docs/sandbox-quickstart)  workspaces have Raw Signing enabled by default to allow for testing purposes.
-<br/>
-
-> :warning: **Warning:** 
-> This code example is in Alpha version and should not be used in your production environment. 
-
-<br/>
 <hr/>
 
 
 ## Introduction
 
-The Fireblocks Solana Web3 Connection Adapter facilitates interactions between the Fireblocks API and the Solana blockchain, simplifying the process of sending transactions through Fireblocks by handling complex authentication, nonce management, and transaction signing procedures.
+The Fireblocks Solana Web3 Connection Adapter facilitates interactions between the Fireblocks API and the Solana blockchain, simplifying the process of sending transactions through Fireblocks by handling complex authentication and transaction signing procedures.
 
-The Solana Web3 Connection Adapter utilizes Fireblocks [Raw Singing](https://developers.fireblocks.com/docs/raw-message-signing-overview) for processing any non native, single instruction transactions.
+The Solana Web3 Connection Adapter utilizes Fireblocks Program Call API to process and sign all transactions, providing a seamless integration with the Solana blockchain.
 
-If the transaction has a single `transfer` instruction - the adapter will identify that and will execute the request a regular Fireblocks Solana transaction.
+> **Note**: This Web3 Connection Adapter is currently in Beta. We welcome your feedback and pull requests to help improve the package!
+
+> **Important**: The Program Call API is currently in Early Availability. Please contact your Customer Success Manager (CSM) to enable this feature for your workspace.
 
 
 ## Installation
@@ -60,7 +43,7 @@ import { FireblocksConnectionAdapter } from './path_to_adapter';
 const config = {
   apiKey: process.env.FIREBLOCKS_API_KEY,
   apiSecretPath: process.env.FIREBLOCKS_SECRET_KEY_PATH,
-  vaultAccountId: 'your_vault_account_id'
+  vaultAccountId: process.env.FIREBLOCKS_VAULT_ACCOUNT_ID
 };
 
 const solanaEndpoint = 'https://api.devnet.solana.com'; // Use appropriate Solana RPC endpoint
@@ -85,7 +68,7 @@ const fromMyAccount = new PublicKey(connection.getAccount());
 let transaction = new Transaction().add(
   SystemProgram.transfer({
     fromPubkey: fromMyAccount,
-    toPubkey: new PublicKey('destination_public_key'),
+    toPubkey: new PublicKey('destination_address'),
     lamports: 1000
   })
 );
@@ -121,17 +104,3 @@ Get the address of the current account (the address of the SOL/SOL_TEST wallet i
 ```js
 connection.getAccount() 
 ```
-
-Create a nonce account and nonce authority while the fee payer is your configured Fireblocks Vault Account. \
-NOTE: The nonce authority keypair is created locally in `nonceInfo.ts` file.
-
-```js
-helpers.createNonceAccountAndAuthority(connection: FireblocksConnectionAdapter)
-```
-
-## Durable nonce support
-Solana transactions should be signed and validate within a limited timeframe, read more in the [official Solana Documentation](https://solana.com/docs/core/transactions/confirmation#transaction-expiration).
-
-This limitation can be solved by utilizing the [Solana Durable Nonce](https://solana.com/developers/guides/advanced/introduction-to-durable-nonces) feature.
-Fireblocks Solana Web3 Connection Adapter accepts the `nonceAccountAddress` and the `nonceAuthorityKeypair` optional parameters in order to serialize and sign a transaction with a durable nonce.
-Please check the `createProgramCallWithNonce.ts` example in the examples directory for usage example.
