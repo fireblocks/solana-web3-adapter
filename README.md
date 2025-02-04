@@ -84,10 +84,23 @@ console.log('Transaction sent with hash:', txHash);
 
 See the [examples](https://github.com/fireblocks/solana-web3-provider/tree/main/examples) directory in this repository for more detailed examples.
 
+
+## Connection Configuration
+```js
+ apiKey: string - Your Fireblocks API Key
+ apiSecretPath: string - Path to your Fireblocks API Secret Key
+ apiBaseUrl?: ApiBaseUrl | string - Base URL for the Fireblocks API (optional, defaults to US production environment)
+ vaultAccountId: string | number - The ID of the vault account to use for transactions
+ devnet?: boolean - Whether to use the Devnet environment (optional, defaults to false)
+ pollingInterval?: number - Fireblocks API polling interval for tx status updates
+ feeLevel?: FeeLevel - Fee level to use for transactions (optional, defaults to MEDIUM)
+ silent?: boolean - Whether to suppress logging (optional, defaults to false)
+```
+
+
 ## Extended methods
 
 Fireblocks Solana Web3 Connection Adapter introduces a few extended methods for better user experience:
-
 
 Set a transaction note:
 ```js
