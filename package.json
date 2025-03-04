@@ -10,6 +10,7 @@
   "license": "ISC",
   "devDependencies": {
     "@solana/web3.js": "^1.95.8",
+    "axios": "^1.8.1",
     "fireblocks-sdk": "^5.23.0",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
