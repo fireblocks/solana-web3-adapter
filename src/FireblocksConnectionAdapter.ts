@@ -249,9 +249,31 @@ export class FireblocksConnectionAdapter extends Connection {
       
       
       if (transaction instanceof Transaction) {
-        const { blockhash } = await this.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = new PublicKey(this.account);
+        if (!transaction.recentBlockhash) {
+          const { blockhash } = await this.getLatestBlockhash();
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = new PublicKey(this.account);
+        }
+      } else {
+        if (!transaction.message.recentBlockhash) {
+          const { blockhash } = await this.getLatestBlockhash();
+          transaction.message.recentBlockhash = blockhash;
+
+          // For versioned transactions, fee payer is the first account in the message
+          if (!transaction.message.staticAccountKeys[0].equals(new PublicKey(this.account))) {
+            transaction.message.staticAccountKeys[0] = new PublicKey(this.account);
+          }
+        }
+      }
+
+      if (signers && Array.isArray(signers)) {
+        for (const signer of signers) {
+          if (transaction instanceof Transaction) {
+            transaction.partialSign(signer);
+          } else {
+            transaction.sign([signer]);
+          }
+        }
       }
       
       const fbTxResponse = await this.signWithFireblocks(transaction);
