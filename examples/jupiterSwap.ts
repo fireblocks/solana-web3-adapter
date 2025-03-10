@@ -9,7 +9,7 @@ const JUPITER_CONFIG = {
   API_URL: 'https://quote-api.jup.ag/v6',
   WRAPPED_SOL_MINT: 'So11111111111111111111111111111111111111112',
   USDC_MINT: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-  AMOUNT_TO_SWAP: 0.1 * 10 ** 9,
+  AMOUNT_TO_SWAP: 0.05 * 10 ** 9,
   SLIPPAGE_BPS: 50,
 };
 
@@ -18,7 +18,7 @@ const connectionConfig: FireblocksConnectionAdapterConfig = {
   apiKey: process.env.FIREBLOCKS_API_KEY,
   apiSecretPath: process.env.FIREBLOCKS_SECRET_KEY_PATH,
   vaultAccountId: process.env.FIREBLOCKS_VAULT_ACCOUNT_ID,
-  silent: false,
+  silent: false
 };
 
 // Jupiter API Helper Functions
