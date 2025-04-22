@@ -2,8 +2,10 @@
   "name": "solana_fireblocks_web3_provider",
   "version": "1.0.1",
   "description": "Solana Web3.js Fireblocks compatible provider",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "build": "tsc",
     "prettier": "prettier --write './**/*.ts'"
   },
   "author": "",
