@@ -26,25 +26,30 @@ export type AssetId = typeof ASSET_IDS[keyof typeof ASSET_IDS];
 /**
  * apiKey: string - Fireblocks API Key
  *
- * apiSecretPath: string - Fireblocks API Secret key file PATH
+ * apiSecret?: string - Fireblocks API Secret key (directly as string, e.g., from environment variable)
+ *
+ * apiSecretPath?: string - Fireblocks API Secret key file PATH
+ *
+ * Note: Either apiSecret or apiSecretPath must be provided. If both are provided, apiSecret takes precedence.
  *
  * apiBaseUrl?: ApiBaseUrl | string - Fireblocks API Base URL - default production
  *
  * vaultAccountId: string | number - Fireblocks Vault Account ID
  *
  * pollingInterval?: number - Fireblocks API polling interval for tx status updates
- * 
+ *
  * waitForFireblocksConfirmation?: boolean - Whether to wait for Fireblocks confirmation before returning the transaction. Default and recommended is true.
- * 
+ *
  * feeLevel?: LOW | MEDIUM | HIGH - Fee level to use for transactions
- * 
+ *
  * logger?: pass custom logger
- * 
+ *
  * silent?: boolean - Whether to suppress logging output. Default is false, which means verbose logging is enabled.
  */
 export interface FireblocksConnectionAdapterConfig {
   readonly apiKey: string;
-  readonly apiSecretPath: string;
+  readonly apiSecret?: string;
+  readonly apiSecretPath?: string;
   readonly apiBaseUrl?: ApiBaseUrl | string;
   readonly vaultAccountId: string | number;
   devnet?: boolean;
