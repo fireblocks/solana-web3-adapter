@@ -68,11 +68,15 @@ export class FireblocksConnectionAdapter extends Connection {
   }
 
   private validateConfig(config: FireblocksConnectionAdapterConfig): void {
-    if (!config.apiKey || !config.apiSecretPath || !config.vaultAccountId) {
+    if (!config.apiKey || !config.vaultAccountId) {
       throw new Error('Missing required configuration parameters');
     }
-    
-    if (!fs.existsSync(config.apiSecretPath)) {
+
+    if (!config.apiSecret && !config.apiSecretPath) {
+      throw new Error('Either apiSecret or apiSecretPath must be provided');
+    }
+
+    if (!config.apiSecret && config.apiSecretPath && !fs.existsSync(config.apiSecretPath)) {
       throw new Error(`API secret file not found at path: ${config.apiSecretPath}`);
     }
   }
@@ -95,7 +99,9 @@ export class FireblocksConnectionAdapter extends Connection {
     }
 
     try {
-      const fireblocksSecretKey = await fs.promises.readFile(config.apiSecretPath, "utf-8");
+      const fireblocksSecretKey = config.apiSecret
+        ? config.apiSecret
+        : await fs.promises.readFile(config.apiSecretPath!, "utf-8");
       const fireblocksClient = new FireblocksSDK(
         fireblocksSecretKey,
         config.apiKey,

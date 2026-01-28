@@ -73,10 +73,13 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
         };
     }
     validateConfig(config) {
-        if (!config.apiKey || !config.apiSecretPath || !config.vaultAccountId) {
+        if (!config.apiKey || !config.vaultAccountId) {
             throw new Error('Missing required configuration parameters');
         }
-        if (!fs_1.default.existsSync(config.apiSecretPath)) {
+        if (!config.apiSecret && !config.apiSecretPath) {
+            throw new Error('Either apiSecret or apiSecretPath must be provided');
+        }
+        if (!config.apiSecret && config.apiSecretPath && !fs_1.default.existsSync(config.apiSecretPath)) {
             throw new Error(`API secret file not found at path: ${config.apiSecretPath}`);
         }
     }
@@ -94,7 +97,9 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
                 throw new Error('Endpoint is required');
             }
             try {
-                const fireblocksSecretKey = yield fs_1.default.promises.readFile(config.apiSecretPath, "utf-8");
+                const fireblocksSecretKey = config.apiSecret
+                    ? config.apiSecret
+                    : yield fs_1.default.promises.readFile(config.apiSecretPath, "utf-8");
                 const fireblocksClient = new fireblocks_sdk_1.FireblocksSDK(fireblocksSecretKey, config.apiKey, types_1.API_BASE_URLS.PRODUCTION);
                 const adapter = new FireblocksConnectionAdapter(fireblocksClient, endpoint, config, commitment);
                 yield adapter.setAccount(config.vaultAccountId, config.devnet);
